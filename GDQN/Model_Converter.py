@@ -1,4 +1,6 @@
 import tensorflow as tf
+import keras.backend as K
+from keras.layers import Lambda
 
 
 class GeneticModel:
@@ -29,8 +31,15 @@ class GeneticModel:
     def Calc_UpSampling_HP(self, PS_gen1, PS_gen2):
         size = int(PS_gen2/PS_gen1)
         return size
+
+    def lambda_out_shape(self,input_shape):
+        shape = list(input_shape)
+        shape[-1] = 1
+        return tuple(shape)
     
     def Convert2Model(self,Mgen,Sgen):
+        input_frame = tf.keras.layers.Input(shape=(84, 84, 4))
+        action_one_hot = tf.keras.layers.Input(shape=(3,))
         model = tf.keras.models.Sequential()
         Master_Gen = (lambda x: [x[3 * i:3 * i + 3] for i in range(11)])(Mgen)
         Sgen = (lambda x: [x[2 * i:2 * i + 2] for i in range(11)])(Sgen)
@@ -53,169 +62,81 @@ class GeneticModel:
                 
             except IndexError:
                 Post = 4
-            if(i==0):
-                if (Prev >= Post):
-                    if (Valid_Mgen_List[i] == '010'):
-                        t = Prev
-                        model.add(tf.keras.layers.Dense(t ** 2,activation='relu',input_shape=(84,84,4)))
+            if (Prev >= Post):
+                if (Valid_Mgen_List[i] == '010'):
+                    # Sgen = Prev
+                    t = Prev
+                    model.add(tf.keras.layers.Dense(t ** 2, activation='relu'))
+                            
+                elif (Valid_Mgen_List[i] == '111'):
+                    # Sgen = Prev
+                    t = Prev
+                    model.add(tf.keras.layers.Dense(t ** 2, activation='softmax'))
+                    break
+                elif (Valid_Mgen_List[i] == '000'):
+                    Kernel_Size = self.Calc_Conv_HP(Prev, Post)
+                    model.add(tf.keras.layers.Conv2D(16,kernel_size=(Kernel_Size, Kernel_Size),
+                    activation='relu'))
+                        
+                elif (Valid_Mgen_List[i] == '001'):
+                    Strides, pooling_size = self.Calc_Pool_HP(Prev, Post)
+                    model.add(tf.keras.layers.AveragePooling2D(pool_size=(pooling_size,pooling_size),
+                    strides=(Strides,Strides)))
+                            
+                elif (Valid_Mgen_List[i] == '100'):
+                    Kernel_Size = self.Calc_Conv_HP(Prev, Post)
+                    model.add(tf.keras.layers.Conv2D(16,kernel_size=(Kernel_Size, Kernel_Size),
+                    activation='sigmoid'))
+                            
+                elif (Valid_Mgen_List[i] == '101'):
+                    Kernel_Size = self.Calc_Conv_HP(Prev,Post)
+                    model.add(tf.keras.layers.Conv2D(16,kernel_size=(Kernel_Size, Kernel_Size),
+                    activation='relu'))
+                    model.add(tf.keras.layers.GaussianNoise(1))
+                            
 
-                    elif (Valid_Mgen_List[i] == '111'):
-                        t = Prev
-                        model.add(tf.keras.layers.Dense(t ** 2, activation='softmax',input_shape=(84,84,4)))
-                        break
-                    elif (Valid_Mgen_List[i] == '000'):
-                        Kernel_Size = self.Calc_Conv_HP(Prev, Post)
-                        model.add(tf.keras.layers.Conv2D(16,kernel_size=(Kernel_Size, Kernel_Size),
-                        activation='relu',input_shape=(84,84,4)))
-                   
-                    elif (Valid_Mgen_List[i] == '001'):
-                        Strides, pooling_size = self.Calc_Pool_HP(Prev, Post)
-                        model.add(tf.keras.layers.AveragePooling2D(pool_size=(pooling_size,pooling_size),
-                        strides=(Strides,Strides),input_shape=(84,84,4)))
-                    
-                    elif (Valid_Mgen_List[i] == '100'):
-                        Kernel_Size = self.Calc_Conv_HP(Prev, Post)
-                        model.add(tf.keras.layers.Conv2D(16,kernel_size=(Kernel_Size, Kernel_Size),
-                        activation='sigmoid',input_shape=(84,84,4)))
-                  
-                    elif (Valid_Mgen_List[i] == '101'):
-                        Kernel_Size = self.Calc_Conv_HP(Prev,Post)
-                        model.add(tf.keras.layers.Conv2D(16,kernel_size=(Kernel_Size, Kernel_Size),
-                        activation='relu',input_shape=(84,84,4)))
-                        model.add(tf.keras.layers.GaussianNoise(1))
-
-                else:
-                    if (Valid_Mgen_List[i] == '010'):
-                        t = Prev
-                        model.add(tf.keras.layers.Dense(t ** 2,activation='relu',input_shape=(84,84,4)))
-                 
-                    elif (Valid_Mgen_List[i] == '111'):
-                        t = Prev
-                        model.add(tf.keras.layers.Dense(t ** 2,activation='softmax',input_shape=(84,84,4)))
-                        break
-                    elif (Valid_Mgen_List[i] == '000'):
-                        kernel_size = self.Calc_ConvTranspose_HP(Prev,Post)
-                        model.add(tf.keras.layers.Conv2DTranspose(16,kernel_size=(kernel_size,kernel_size),
-                        activation='relu',input_shape=(84,84,4)))
-                
-                    elif (Valid_Mgen_List[i] == '001'):
-                        Size = self.Calc_UpSampling_HP(Prev,Post)
-                        model.add(tf.keras.layers.UpSampling2D(size=(Size,Size),input_shape=(84,84,4)))
-                   
-                    elif (Valid_Mgen_List[i] == '100'):
-                        kernel_size = self.Calc_ConvTranspose_HP(Prev,Post)
-                        model.add(tf.keras.layers.Conv2DTranspose(16,kernel_size=(kernel_size,kernel_size),
-                        activation='sigmoid',input_shape=(84,84,4)))
-                       
-                    elif (Valid_Mgen_List[i] == '101'):
-                        kernel_size = self.Calc_ConvTranspose_HP(Prev,Post)
-                        model.add(tf.keras.layers.Conv2DTranspose(16,kernel_size=(kernel_size,kernel_size),
-                        activation='relu',input_shape=(84,84,4)))
-                        model.add(tf.keras.layers.GaussianNoise(1))
-            
-                print('First Layer is added')
             else:
-                if (Prev >= Post):
-                    if (Valid_Mgen_List[i] == '010'):
-                        # Sgen = Prev
-                        t = Prev
-                        model.add(tf.keras.layers.Dense(t ** 2, activation='relu'))
+                if (Valid_Mgen_List[i] == '010'):
+                    t = Prev
+                    model.add(tf.keras.layers.Dense(t ** 2, activation='relu'))
                         
-                    elif (Valid_Mgen_List[i] == '111'):
-                        # Sgen = Prev
-                        t = Prev
-                        model.add(tf.keras.layers.Dense(t ** 2, activation='softmax'))
-                        
-                        break
-                    elif (Valid_Mgen_List[i] == '000'):
-                        Kernel_Size = self.Calc_Conv_HP(Prev, Post)
-                        model.add(tf.keras.layers.Conv2D(16,kernel_size=(Kernel_Size, Kernel_Size),
-                        activation='relu'))
-                       
-                    elif (Valid_Mgen_List[i] == '001'):
-                        Strides, pooling_size = self.Calc_Pool_HP(Prev, Post)
-                        model.add(tf.keras.layers.AveragePooling2D(pool_size=(pooling_size,pooling_size),
-                        strides=(Strides,Strides)))
-                        
-                    elif (Valid_Mgen_List[i] == '100'):
-                        Kernel_Size = self.Calc_Conv_HP(Prev, Post)
-                        model.add(tf.keras.layers.Conv2D(16,kernel_size=(Kernel_Size, Kernel_Size),
-                        activation='sigmoid'))
-                        
-                    elif (Valid_Mgen_List[i] == '101'):
-                        Kernel_Size = self.Calc_Conv_HP(Prev,Post)
-                        model.add(tf.keras.layers.Conv2D(16,kernel_size=(Kernel_Size, Kernel_Size),
-                        activation='relu'))
-                        model.add(tf.keras.layers.GaussianNoise(1))
-                        
-
-                else:
-                    if (Valid_Mgen_List[i] == '010'):
-                        t = Prev
-                        model.add(tf.keras.layers.Dense(t ** 2, activation='relu'))
-                    
-                    elif (Valid_Mgen_List[i] == '111'):
-                        t = Prev
-                        model.add(tf.keras.layers.Dense(t ** 2, activation='softmax'))
-                    
-                        break
-                    elif (Valid_Mgen_List[i] == '000'):
-                        
-                        kernel_size = self.Calc_ConvTranspose_HP(Prev,Post)
-                        model.add(tf.keras.layers.Conv2DTranspose(16,kernel_size=(kernel_size,kernel_size),
-                        activation='relu'))
-                        
-                    elif (Valid_Mgen_List[i] == '001'):
-                        
-                        Size = self.Calc_UpSampling_HP(Prev,Post)
-                        model.add(tf.keras.layers.UpSampling2D(size=(Size,Size)))
-                        
-                    elif (Valid_Mgen_List[i] == '100'):
-                        
-                        kernel_size = self.Calc_ConvTranspose_HP(Prev,Post)
-                        model.add(tf.keras.layers.Conv2DTranspose(16,kernel_size=(kernel_size,kernel_size),
-                        activation='sigmoid'))
-                        
-                    elif (Valid_Mgen_List[i] == '101'):
-                        
-                        kernel_size = self.Calc_ConvTranspose_HP(Prev,Post)
-                        model.add(tf.keras.layers.Conv2DTranspose(16,kernel_size=(kernel_size,kernel_size),
-                        activation='relu'))
-                        model.add(tf.keras.layers.GaussianNoise(1))
-                        
-             
-
-        model.add(tf.keras.layers.Flatten());model.summary()
-        model.compile(
-            loss=lambda targ, pred: tf.compat.v1.losses.huber_loss(labels=targ, predictions=pred),
-            metrics=['accuracy', 'mae'], optimizer=self.optim)
+                elif (Valid_Mgen_List[i] == '111'):
+                    t = Prev
+                    model.add(tf.keras.layers.Dense(t ** 2, activation='softmax'))
+                    break
+                elif (Valid_Mgen_List[i] == '000'):
+                    kernel_size = self.Calc_ConvTranspose_HP(Prev,Post)
+                    model.add(tf.keras.layers.Conv2DTranspose(16,kernel_size=(kernel_size,kernel_size),
+                    activation='relu'))
+                            
+                elif (Valid_Mgen_List[i] == '001'):
+                    Size = self.Calc_UpSampling_HP(Prev,Post)
+                    model.add(tf.keras.layers.UpSampling2D(size=(Size,Size)))
+                            
+                elif (Valid_Mgen_List[i] == '100'):
+                    kernel_size = self.Calc_ConvTranspose_HP(Prev,Post)
+                    model.add(tf.keras.layers.Conv2DTranspose(16,kernel_size=(kernel_size,kernel_size),
+                    activation='sigmoid'))
+                            
+                elif (Valid_Mgen_List[i] == '101'):
+                    kernel_size = self.Calc_ConvTranspose_HP(Prev,Post)
+                    model.add(tf.keras.layers.Conv2DTranspose(16,kernel_size=(kernel_size,kernel_size),
+                    activation='relu'))
+                    model.add(tf.keras.layers.GaussianNoise(1))
+        
+        model.add(tf.keras.layers.Flatten());model.add(tf.keras.layers.Dense(3))
+        q_value_prediction = model.layers[-1].output
+        select_q_value_of_action = tf.keras.layers.Multiply()([q_value_prediction,action_one_hot])
+        target_q_value = Lambda(lambda x:K.sum(x, axis=-1, keepdims=True),
+        output_shape=self.lambda_out_shape(input_frame))(select_q_value_of_action)
+        model = model(inputs=[input_frame,action_one_hot], outputs=[q_value_prediction, target_q_value])
+        model.summary()
+        model.compile(loss=['mse','mse'], loss_weights=[0.0,1.0],optimizer=self.optim)
         
         model.save('model/'+Mgen+'.h5')
         print('MODEL Constructing has DONE')
 
         return model
-    
-    def optimizer(self):
-        action = tf.placeholder('int32', (None,))
-        target = tf.placeholder('float32', (None,))
-        pred = self.model.output
-        action_onehot = tf.one_hot(action, self.output_size)
-        qval = tf.sum(pred*action_onehot, axis=1)
-        error = tf.abs(target-qval)
-        clipped_err = tf.clip(error, 0,1)
-        overflowed_err = error - clipped_err
-        loss = tf.mean(0.5*tf.sqaure(clipped_err) + overflowed_err)
-        optimizer = self.optim
-        grad = optimizer.get_updates(self.model.trainable_weights, [], loss)
-        trainer = tf.function([self.model.input, action, target], [loss], updates=grad)
-
-        return trainer
-
-    def train(self, pred, action, target):
-        self.trainer([pred, action, target])
-
-
-
 
 
 
