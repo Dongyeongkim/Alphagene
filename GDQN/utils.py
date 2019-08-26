@@ -14,14 +14,16 @@ class hardwareUsage:
         return psutil.virtual_memory()[2]
 
     def GPU(self):
-        gpu_usage = []
-        for gpu in get_gpus():
-            gpu_usage.append(gpu.get_clock_speeds(0)/gpu.get_max_clock_speeds(0))
-        Calc_Power = sum(gpu_usage)
-        return Calc_Power
+      for gpu in get_gpus():
+        max_clock_speed = gpu.get_max_clock_speeds()
+        current_clock_speed = gpu.get_clock_speeds()
+        Core_Usage = (current_clock_speed['core_clock_speed']/max_clock_speed['max_core_clock_speed'])
+        Memory_Usage = (current_clock_speed['memory_clock_speed']/max_clock_speed['max_memory_clock_speed'])
+      return 100*(Core_Usage+Memory_Usage)
+        
         
     def Pred_E(self):
-        E = self.RAM()+self.CPU()
+        E = self.RAM()+self.CPU()+self.GPU()
         return E
     
 
