@@ -1,7 +1,4 @@
 import tensorflow as tf
-import keras.backend as K
-from keras.layers import Lambda
-
 
 class GeneticModel:
     def __init__(self,Mgen,Sgen,optim=tf.keras.optimizers.Adam,lr=1e-7):
@@ -38,13 +35,11 @@ class GeneticModel:
         return tuple(shape)
     
     def Convert2Model(self,Mgen,Sgen):
-        input_frame = tf.keras.layers.Input(shape=(84, 84, 4))
-        action_one_hot = tf.keras.layers.Input(shape=(3,))
         model = tf.keras.models.Sequential()
+        model.add(tf.keras.layers.InputLayer(input_shape=100))
         Master_Gen = (lambda x: [x[3 * i:3 * i + 3] for i in range(11)])(Mgen)
         Sgen = (lambda x: [x[2 * i:2 * i + 2] for i in range(11)])(Sgen)
-        Valid_Sgen_List = []; Valid_Sgen_List.append('54')
-        Valid_Mgen_List = []
+        Valid_Sgen_List = []; Valid_Mgen_List = []
        
         for i in range(len(Master_Gen)):
             if((Master_Gen[i]!='011')and(Master_Gen[i]!='110')):
@@ -125,15 +120,7 @@ class GeneticModel:
                     model.add(tf.keras.layers.GaussianNoise(1))
         
         model.add(tf.keras.layers.Flatten());model.add(tf.keras.layers.Dense(3))
-        q_value_prediction = model.layers[-1].output
-        select_q_value_of_action = tf.keras.layers.Multiply()([q_value_prediction,action_one_hot])
-        target_q_value = Lambda(lambda x:K.sum(x, axis=-1, keepdims=True),
-        output_shape=self.lambda_out_shape(input_frame))(select_q_value_of_action)
-        model = model(inputs=[input_frame,action_one_hot], outputs=[q_value_prediction, target_q_value])
-        model.summary()
-        model.compile(loss=['mse','mse'], loss_weights=[0.0,1.0],optimizer=self.optim)
-        
-        model.save('model/'+Mgen+'.h5')
+        model.compile(tf.keras.optimizers.SGD(lr=.2), "mse")
         print('MODEL Constructing has DONE')
 
         return model
