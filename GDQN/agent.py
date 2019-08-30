@@ -1,184 +1,271 @@
+# -*- coding: utf-8 -*-
 import os
+import gym
 import json
 import utils
+import keras
+import random
+import Genetic
 import gen_main
 import numpy as np
 import tensorflow as tf
-from keras.models import model_from_json
+from collections import deque
+from keras import backend as K
+from skimage.color import rgb2gray
+from skimage.transform import resize
+from keras.optimizers import RMSprop
 
-class Catch(object):
-    def __init__(self, grid_size=10):
-        self.grid_size = grid_size
-        self.reset()
+EPISODES = 50000
 
-    def _update_state(self, action):
-        """
-        Input: action and states
-        Ouput: new states and reward
-        """
-        state = self.state
-        if action == 0:  # left
-            action = -1
-        elif action == 1:  # stay
-            action = 0
+
+class DQNAgent:
+    def __init__(self, action_size,Popn):
+        self.render = False
+        self.load_model = False
+        # environment settings
+        self.state_size = (84, 84, 4)
+        self.action_size = action_size
+        # parameters about epsilon
+        self.epsilon = 1.
+        self.epsilon_start, self.epsilon_end = 1.0, 0.1
+        self.exploration_steps = 1000000.
+        self.epsilon_decay_step = (self.epsilon_start - self.epsilon_end) \
+                                  / self.exploration_steps
+        # parameters about training
+        self.batch_size = 32
+        self.train_start = 50000
+        self.update_target_rate = 10000
+        self.discount_factor = 0.99
+        self.memory = deque(maxlen=400000)
+        self.no_op_steps = 30
+        self.model = self.build_model()[Popn]
+        self.target_model = self.build_model()[Popn]
+        self.update_target_model()
+        self.optimizer = self.optimizer()
+        self.sess = tf.InteractiveSession()
+        K.set_session(self.sess)
+
+        self.avg_q_max, self.avg_loss = 0, 0
+        self.summary_placeholders, self.update_ops, self.summary_op = \
+            self.setup_summary()
+        self.summary_writer = tf.summary.FileWriter(
+            'summary/breakout_dqn', self.sess.graph)
+        self.sess.run(tf.global_variables_initializer())
+
+        if self.load_model:
+            self.model.load_weights("./save_model/breakout_dqn.h5")
+
+    # if the error is in [-1, 1], then the cost is quadratic to the error
+    # But outside the interval, the cost is linear to the error
+    def optimizer(self):
+        a = K.placeholder(shape=(None,), dtype='int32')
+        y = K.placeholder(shape=(None,), dtype='float32')
+
+        py_x = self.model.output
+
+        a_one_hot = K.one_hot(a, self.action_size)
+        q_value = K.sum(py_x * a_one_hot, axis=1)
+        error = K.abs(y - q_value)
+
+        quadratic_part = K.clip(error, 0.0, 1.0)
+        linear_part = error - quadratic_part
+        loss = K.mean(0.5 * K.square(quadratic_part) + linear_part)
+
+        optimizer = RMSprop(lr=0.00025, epsilon=0.01)
+        updates = optimizer.get_updates(self.model.trainable_weights, [], loss)
+        train = K.function([self.model.input, a, y], [loss], updates=updates)
+
+        return train
+
+    # approximate Q function using Convolution Neural Network
+    # state is input and Q Value of each action is output of network
+    def build_model(self):
+        Gen_M = gen_main.GenMain
+        return Gen_M.main
+
+    # after some time interval update the target model to be same with model
+    def update_target_model(self):
+        self.target_model.set_weights(self.model.get_weights())
+
+    # get action from model using epsilon-greedy policy
+    def get_action(self, history):
+        history = np.float32(history / 255.0)
+        if np.random.rand() <= self.epsilon:
+            return random.randrange(self.action_size)
         else:
-            action = 1  # right
-        f0, f1, basket = state[0]
-        new_basket = min(max(1, basket + action), self.grid_size-1)
-        f0 += 1
-        out = np.asarray([f0, f1, new_basket])
-        out = out[np.newaxis]
+            q_value = self.model.predict(history)
+            return np.argmax(q_value[0])
 
-        assert len(out.shape) == 2
-        self.state = out
+    # save sample <s,a,r,s'> to the replay memory
+    def replay_memory(self, history, action, reward, next_history, dead):
+        self.memory.append((history, action, reward, next_history, dead))
 
-    def _draw_state(self):
-        im_size = (self.grid_size,)*2
-        state = self.state[0]
-        canvas = np.zeros(im_size)
-        canvas[state[0], state[1]] = 1  # draw fruit
-        canvas[-1, state[2]-1:state[2] + 2] = 1  # draw basket
-        return canvas
+    # pick samples randomly from replay memory (with batch_size)
+    def train_replay(self):
+        if len(self.memory) < self.train_start:
+            return
+        if self.epsilon > self.epsilon_end:
+            self.epsilon -= self.epsilon_decay_step
 
-    def _get_reward(self):
-        fruit_row, fruit_col, basket = self.state[0]
-        if fruit_row == self.grid_size-1:
-            if abs(fruit_col - basket) <= 1:
-                return 1
+        mini_batch = random.sample(self.memory, self.batch_size)
+
+        history = np.zeros((self.batch_size, self.state_size[0],
+                            self.state_size[1], self.state_size[2]))
+        next_history = np.zeros((self.batch_size, self.state_size[0],
+                                 self.state_size[1], self.state_size[2]))
+        target = np.zeros((self.batch_size,))
+        action, reward, dead = [], [], []
+
+        for i in range(self.batch_size):
+            history[i] = np.float32(mini_batch[i][0] / 255.)
+            next_history[i] = np.float32(mini_batch[i][3] / 255.)
+            action.append(mini_batch[i][1])
+            reward.append(mini_batch[i][2])
+            dead.append(mini_batch[i][4])
+
+        target_value = self.target_model.predict(next_history)
+
+        # like Q Learning, get maximum Q value at s'
+        # But from target model
+        for i in range(self.batch_size):
+            if dead[i]:
+                target[i] = reward[i]
             else:
-                return -1
-        else:
-            return 0
+                target[i] = reward[i] + self.discount_factor * \
+                                        np.amax(target_value[i])
 
-    def _is_over(self):
-        if self.state[0, 0] == self.grid_size-1:
-            return True
-        else:
-            return False
+        loss = self.optimizer([history, action, target])
+        self.avg_loss += loss[0]
 
-    def observe(self):
-        canvas = self._draw_state()
-        return canvas.reshape((1, -1))
+    def save_model(self, name):
+        self.model.save_weights(name)
 
-    def act(self, action):
-        self._update_state(action)
-        reward = self._get_reward()
-        game_over = self._is_over()
-        return self.observe(), reward, game_over
+    # make summary operators for tensorboard
+    def setup_summary(self):
+        episode_total_reward = tf.Variable(0.)
+        episode_avg_max_q = tf.Variable(0.)
+        episode_duration = tf.Variable(0.)
+        episode_avg_loss = tf.Variable(0.)
 
-    def reset(self):
-        n = np.random.randint(0, self.grid_size-1, size=1)
-        m = np.random.randint(1, self.grid_size-2, size=1)
-        self.state = np.asarray([0, n, m])[np.newaxis]
+        tf.summary.scalar('Total Reward/Episode', episode_total_reward)
+        tf.summary.scalar('Average Max Q/Episode', episode_avg_max_q)
+        tf.summary.scalar('Duration/Episode', episode_duration)
+        tf.summary.scalar('Average Loss/Episode', episode_avg_loss)
+
+        summary_vars = [episode_total_reward, episode_avg_max_q,
+                        episode_duration, episode_avg_loss]
+        summary_placeholders = [tf.placeholder(tf.float32) for _ in
+                                range(len(summary_vars))]
+        update_ops = [summary_vars[i].assign(summary_placeholders[i]) for i in
+                      range(len(summary_vars))]
+        summary_op = tf.summary.merge_all()
+        return summary_placeholders, update_ops, summary_op
 
 
-class ExperienceReplay(object):
-    def __init__(self, max_memory=100, discount=.9):
-        self.max_memory = max_memory
-        self.memory = list()
-        self.discount = discount
+# 210*160*3(color) --> 84*84(mono)
+# float --> integer (to reduce the size of replay memory)
+def pre_processing(observe):
+    processed_observe = np.uint8(
+        resize(rgb2gray(observe), (84, 84), mode='constant') * 255)
+    return processed_observe
 
-    def remember(self, states, game_over):
-        # memory[i] = [[state_t, action_t, reward_t, state_t+1], game_over?]
-        self.memory.append([states, game_over])
-        if len(self.memory) > self.max_memory:
-            del self.memory[0]
-
-    def get_batch(self, model, batch_size=10):
-        len_memory = len(self.memory)
-        num_actions = model.output_shape[-1]
-        env_dim = self.memory[0][0][0].shape[1]
-        inputs = np.zeros((min(len_memory, batch_size), env_dim))
-        targets = np.zeros((inputs.shape[0], num_actions))
-        for i, idx in enumerate(np.random.randint(0, len_memory,
-                                                  size=inputs.shape[0])):
-            state_t, action_t, reward_t, state_tp1 = self.memory[idx][0]
-            game_over = self.memory[idx][1]
-
-            inputs[i:i+1] = state_t
-            # There should be no target values for actions not taken.
-            # Thou shalt not correct actions not taken #deep
-            targets[i] = model.predict(state_t)[0]
-            Q_sa = np.max(model.predict(state_tp1)[0])
-            if game_over:  # if game_over is True
-                targets[i, action_t] = reward_t
-            else:
-                # reward_t + gamma * max_a' Q(s', a')
-                targets[i, action_t] = reward_t + self.discount * Q_sa
-        return inputs, targets
-    
-def build_network():
-    Gen_M = gen_main.GenMain; 
-    return Gen_M.main
 
 if __name__ == "__main__":
-    for i in range(10):
-        build_network()
-        Power = utils.hardwareUsage
-        for j in range(8):
-            if(j==0):
-                pass
-            else:
-                file = open("/E_Cons/E_Cons"+str(j-1)+".txt",'r')
-                for line in file:
-                    field = line.strip().split(' ')
-                    sum_score = sum(field)
-                    file.close()
-                    os.remove("/E_Cons/E_Cons"+str(j-1)+".txt")
-            
-            # parameters
-            epsilon = .1  # exploration
-            num_actions = 3  # [move_left, stay, move_right]
-            epoch = 1000
-            max_memory = 500
-            hidden_size = 100
-            batch_size = 50
-            grid_size = 10
-            json_file = open("model/model"+str(j)+".json", "r") 
-            loaded_model_json = json_file.read() 
-            json_file.close(); model = model_from_json(loaded_model_json)
+    # In case of BreakoutDeterministic-v3, always skip 4 frames
+    # Deterministic-v4 version use 4 actions
+    env = gym.make('BreakoutDeterministic-v4')
+    for j in range(10):
+        
+        for i in range(8):
+            agent = DQNAgent(action_size=4,Popn=i)
 
-            # Define environment/game
-            env = Catch(grid_size)
+            scores, episodes, global_step = [], [], 0
 
-            # Initialize experience replay object
-            exp_replay = ExperienceReplay(max_memory=max_memory)
+            for e in range(EPISODES):
+                done = False
+                dead = False
+                # 1 episode = 5 lives
+                step, score, start_life = 0, 0, 5
+                observe = env.reset()
 
-            # Train
-            win_cnt = 0
-            for e in range(epoch):
-                loss = 0.
-                env.reset()
-                game_over = False
-                # get initial input
-                input_t = env.observe()
-                
-                while not game_over:
-                    Compute_Power = Power.Pred_E()
-                    f = open("/E_Cons/E_Cons"+str(j)+".txt",'a'); f.write(str(Compute_Power)+' '); f.close()
-                    input_tm1 = input_t
-                    # get next action
-                    if np.random.rand() <= epsilon:
-                        action = np.random.randint(0, num_actions, size=1)
+                # this is one of DeepMind's idea.
+                # just do nothing at the start of episode to avoid sub-optimal
+                for _ in range(random.randint(1, agent.no_op_steps)):
+                    observe, _, _, _ = env.step(1)
+
+                # At start of episode, there is no preceding frame
+                # So just copy initial states to make history
+                state = pre_processing(observe)
+                history = np.stack((state, state, state, state), axis=2)
+                history = np.reshape([history], (1, 84, 84, 4))
+
+                while not done:
+                    if agent.render:
+                        env.render()
+                    global_step += 1
+                    step += 1
+
+                    # get action for the current history and go one step in environment
+                    action = agent.get_action(history)
+                    # change action to real_action
+                    if action == 0:
+                        real_action = 1
+                    elif action == 1:
+                        real_action = 2
                     else:
-                        q = model.predict(input_tm1)
-                        action = np.argmax(q[0])
+                        real_action = 3
 
-                    # apply action, get rewards and new state
-                    input_t, reward, game_over = env.act(action)
-                    if reward == 1:
-                        win_cnt += 1
+                    observe, reward, done, info = env.step(real_action)
+                    # pre-process the observation --> history
+                    next_state = pre_processing(observe)
+                    next_state = np.reshape([next_state], (1, 84, 84, 1))
+                    next_history = np.append(next_state, history[:, :, :, :3], axis=3)
 
-                    # store experience
-                    exp_replay.remember([input_tm1, action, reward, input_t], game_over)
+                    agent.avg_q_max += np.amax(
+                        agent.model.predict(np.float32(history / 255.))[0])
 
-                    # adapt model
-                    inputs, targets = exp_replay.get_batch(model, batch_size=batch_size)
+                    # if the agent missed ball, agent is dead --> episode is not over
+                    if start_life > info['ale.lives']:
+                        dead = True
+                        start_life = info['ale.lives']
 
-                    loss += model.train_on_batch(inputs, targets)[0]
-                print("Epoch {:03d}/999 | Loss {:.4f} | Win count {}".format(e, loss, win_cnt))
+                    reward = np.clip(reward, -1., 1.)
 
-            # Save trained model weights and architecture, this will be used by the visualization code
-            model.save_weights("t_model/model"+str(j)+"ch"+str(i)+".h5", overwrite=True)
-            with open("model.json", "w") as outfile:
-                json.dump(model.to_json(), outfile)
+                    # save the sample <s, a, r, s'> to the replay memory
+                    agent.replay_memory(history, action, reward, next_history, dead)
+                    # every some time interval, train model
+                    agent.train_replay()
+                    # update the target model with model
+                    if global_step % agent.update_target_rate == 0:
+                        agent.update_target_model()
+
+                    score += reward
+
+                    # if agent is dead, then reset the history
+                    if dead:
+                        dead = False
+                    else:
+                        history = next_history
+
+                    # if done, plot the score over episodes
+                    if done:
+                        if global_step > agent.train_start:
+                            stats = [score, agent.avg_q_max / float(step), step,
+                                     agent.avg_loss / float(step)]
+                            for i in range(len(stats)):
+                                agent.sess.run(agent.update_ops[i], feed_dict={
+                                    agent.summary_placeholders[i]: float(stats[i])
+                                })
+                            summary_str = agent.sess.run(agent.summary_op)
+                            agent.summary_writer.add_summary(summary_str, e + 1)
+
+                        print("episode:", e, "  score:", score, "  memory length:",
+                              len(agent.memory), "  epsilon:", agent.epsilon,
+                              "  global_step:", global_step, "  average_q:",
+                              agent.avg_q_max / float(step), "  average loss:",
+                              agent.avg_loss / float(step))
+
+                        agent.avg_q_max, agent.avg_loss = 0, 0
+
+                if e % 1000 == 0:
+                    agent.model.save_weights("./save_model/breakout_dqn.h5")
