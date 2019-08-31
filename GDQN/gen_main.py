@@ -1,9 +1,8 @@
+import os
 import Genetic
 import Model_Converter
-import numpy as np
-import os
 
-# Define the Function that will be used 
+# Define the Function that will be used
 class GenMain:
     def __init__(self):
         self.First_Gen = Genetic.Chromosomes_Offset()
@@ -13,11 +12,12 @@ class GenMain:
         self.PathG = './CrS/'
         self.PathS = './Score/score.txt'
         self.PathE ='./E_Cons/E_Cons.txt'
+        pass
 
     def Get_Gene(self,path):
         Gen_List = []
-        if (len(os.listdir(path))>8):
-            Offset = os.listdir(path);print(Offset)
+        if (len(os.listdir(path))>=8):
+            Offset = os.listdir(path)
             for gene in Offset:
                 if(gene=='.DS_Store'):
                     pass
@@ -26,16 +26,8 @@ class GenMain:
                     Gen = f.readlines()
                     M_Gen = Gen[0]; S_Gen = Gen[1]
                     Gen_List.append([M_Gen,S_Gen]); f.close()
-        else:
-            Gen_List = self.First_Gen.initGen(8)
-            for i in range(len(Gen_List)):
-                Mgen=Gen_List[i][0];print(Gen_List[i][0])
-                f = open(path+Mgen+'.txt','w')
-                Gene = '\n'.join(Gen_List[i])
-                f.write(Gene)
-                f.close()
-            return Gen_List
-    
+        return Gen_List
+
     def Get_Score(self,path):
         if (os.path.isfile(path)==True):
             f = open(path,'r'); data = f.read(); data = data.split()
@@ -54,7 +46,7 @@ class GenMain:
             E_Cons = E_Cons_E
 
         return E_Cons
-        
+
     def main(self):
         Gen_List = self.Get_Gene(self.PathG)
         score = self.Get_Score(self.PathS)
@@ -70,7 +62,7 @@ class GenMain:
         for i in range(len(gen1)):
             MMG1, MMG2 = self.Gen_C.shuffle_Master(gen1[i][0],gen2[i][0])
             MSG1, MSG2 = self.Gen_C.shuffle_Slave(gen1[i][1],gen2[i][1])
-            
+
             ##Mutating Gene
             FMG1,FMG2,FSG1,FSG2= self.Gen_M.Mutation(MMG1,MSG1,MMG2,MSG2,mutate_rate)
             FMG1 = ''.join(FMG1); FMG2 = ''.join(FMG2)
@@ -87,10 +79,12 @@ class GenMain:
         for i in range(len(Fin_Gen)):
             Mgen.append(Fin_Gen[i][0])
             Sgen.append(Fin_Gen[i][1])
-
-        model = []
         for i in range(len(Mgen)):
-            model.append(Model_Converter.GeneticModel(Mgen[i],Sgen[i]))
+            Model = Model_Converter.GeneticModel(Mgen[i], Sgen[i]).model
+            model_json = Model.to_json()
+            with open("model/model" + str(i) + ".json", "w") as json_file:
+                json_file.write(model_json)
 
-        return model
+
+
 

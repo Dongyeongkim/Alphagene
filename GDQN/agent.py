@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
 import os
 import gym
-import json
 import utils
-import keras
 import random
-import Genetic
 import gen_main
 import numpy as np
 import tensorflow as tf
@@ -15,11 +12,11 @@ from skimage.color import rgb2gray
 from skimage.transform import resize
 from keras.optimizers import RMSprop
 
-EPISODES = 50000
+EPISODES = 5000
 
 
 class DQNAgent:
-    def __init__(self, action_size,Popn):
+    def __init__(self, action_size,model):
         self.render = False
         self.load_model = False
         # environment settings
@@ -38,8 +35,8 @@ class DQNAgent:
         self.discount_factor = 0.99
         self.memory = deque(maxlen=400000)
         self.no_op_steps = 30
-        self.model = self.build_model()[Popn]
-        self.target_model = self.build_model()[Popn]
+        self.model = model
+        self.target_model = model
         self.update_target_model()
         self.optimizer = self.optimizer()
         self.sess = tf.InteractiveSession()
@@ -80,8 +77,8 @@ class DQNAgent:
     # approximate Q function using Convolution Neural Network
     # state is input and Q Value of each action is output of network
     def build_model(self):
-        Gen_M = gen_main.GenMain
-        return Gen_M.main
+        Gen_M = gen_main.GenMain()
+        return Gen_M.main()
 
     # after some time interval update the target model to be same with model
     def update_target_model(self):
@@ -161,6 +158,10 @@ class DQNAgent:
         summary_op = tf.summary.merge_all()
         return summary_placeholders, update_ops, summary_op
 
+    def Find_My_TPU_Estimator(self):
+    def TPUmodel_Converter(self,keras_model):
+
+
 
 # 210*160*3(color) --> 84*84(mono)
 # float --> integer (to reduce the size of replay memory)
@@ -169,19 +170,31 @@ def pre_processing(observe):
         resize(rgb2gray(observe), (84, 84), mode='constant') * 255)
     return processed_observe
 
+def build_model():
+    model = []
+    for i in range(8):
+        json_file = open("./model/model"+str(i)+".json", "r")
+        loaded_model_json = json_file.read()
+        json_file.close()
+        loaded_model = tf.keras.models.model_from_json(loaded_model_json)
+        model.append(loaded_model)
+    return model
+
 
 if __name__ == "__main__":
     # In case of BreakoutDeterministic-v3, always skip 4 frames
     # Deterministic-v4 version use 4 actions
     env = gym.make('BreakoutDeterministic-v4')
     for j in range(10):
-        
+        Model = build_model()
         for i in range(8):
-            agent = DQNAgent(action_size=4,Popn=i)
+            agent = DQNAgent(action_size=4,model=Model[i])
 
             scores, episodes, global_step = [], [], 0
 
             for e in range(EPISODES):
+                Power = 10
+                U = utils.hardwareUsage()
                 done = False
                 dead = False
                 # 1 episode = 5 lives
@@ -223,7 +236,7 @@ if __name__ == "__main__":
 
                     agent.avg_q_max += np.amax(
                         agent.model.predict(np.float32(history / 255.))[0])
-
+                    Power += U.Pred_E()
                     # if the agent missed ball, agent is dead --> episode is not over
                     if start_life > info['ale.lives']:
                         dead = True
@@ -234,11 +247,13 @@ if __name__ == "__main__":
                     # save the sample <s, a, r, s'> to the replay memory
                     agent.replay_memory(history, action, reward, next_history, dead)
                     # every some time interval, train model
-                    agent.train_replay()
+                    agent.train_replay();Power += U.Pred_E()
                     # update the target model with model
                     if global_step % agent.update_target_rate == 0:
+                        Power += U.Pred_E()
                         agent.update_target_model()
 
+                    Power += U.Pred_E()
                     score += reward
 
                     # if agent is dead, then reset the history
@@ -264,8 +279,29 @@ if __name__ == "__main__":
                               "  global_step:", global_step, "  average_q:",
                               agent.avg_q_max / float(step), "  average loss:",
                               agent.avg_loss / float(step))
+                        f = open("./s_i/"+str(e)+".txt",'w');f.write(score); f.close()
+                        g = open("./e_i/"+str(e)+".txt",'w');g.write(Power); g.close()
 
                         agent.avg_q_max, agent.avg_loss = 0, 0
+                if e % 500 == 0:
+                    agent.model.save_weights("./t_score/breakout_dqn_gen"+str(j)+'indiv'+str(i)+'times'+str(e)+".h5")
 
-                if e % 1000 == 0:
-                    agent.model.save_weights("./save_model/breakout_dqn.h5")
+            f = open("./Score/" + str(i) + ".txt", 'w');
+            g = open("./E_Cons/" + str(i) + ".txt", 'w')
+            for file in os.scandir("./s_i/"):
+                os.remove(file.path)
+            for file in os.scandir("./e_i/"):
+                os.remove(file.path)
+
+        Score = []; E_Cons = []
+        for i in range(8):
+            f = open('./Score/' + str(i) + '.txt', 'w');  Score.append(f.read())
+            g = open('./E_Cons/' + str(i) + '.txt', 'w'); E_Cons.append(g.read())
+        for i in range(8):
+            f = open('./Score/score.txt', 'a'); f.write(Score[i]+' ')
+            g = open('./E_Cons/E_Cons.txt','a'); f.write(E_Cons[i]+' ')
+
+
+
+
+
