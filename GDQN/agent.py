@@ -197,7 +197,7 @@ if __name__ == "__main__":
                 model_json = Model.to_json()
                 with open("model/model" + str(i) + ".json", "w") as json_file:
                     json_file.write(model_json)
-            Model = Build_model()
+            Model = build_model()
             
         for i in range(8):
             agent = DQNAgent(action_size=4,model=Model[i])
