@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import os
 import gym
 import utils
@@ -12,7 +11,7 @@ from skimage.color import rgb2gray
 from skimage.transform import resize
 from keras.optimizers import RMSprop
 
-EPISODES = 5000
+EPISODES = 50000
 
 
 class DQNAgent:
@@ -37,7 +36,7 @@ class DQNAgent:
         self.no_op_steps = 30
         self.model = model
         self.target_model = model
-        self.update_target_model()
+        self.update_target_model(self.target_model,self.model)
         self.optimizer = self.optimizer()
         self.sess = tf.InteractiveSession()
         K.set_session(self.sess)
@@ -81,8 +80,9 @@ class DQNAgent:
         return Gen_M.main()
 
     # after some time interval update the target model to be same with model
-    def update_target_model(self):
-        self.target_model.set_weights(self.model.get_weights())
+    def update_target_model(self,target_model,model):
+        return target_model.set_weights(model.get_weights())
+        
 
     # get action from model using epsilon-greedy policy
     def get_action(self, history):
@@ -157,10 +157,6 @@ class DQNAgent:
                       range(len(summary_vars))]
         summary_op = tf.summary.merge_all()
         return summary_placeholders, update_ops, summary_op
-
-    def Find_My_TPU_Estimator(self):
-    def TPUmodel_Converter(self,keras_model):
-
 
 
 # 210*160*3(color) --> 84*84(mono)
