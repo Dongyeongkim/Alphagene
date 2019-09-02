@@ -188,6 +188,7 @@ if __name__ == "__main__":
         except FileNotFoundError:
             Gen_C = Genetic.Chromosomes_Offset()
             Gen_List = Gen_C.initGen(8)
+            Mgen = []; Sgen = []
             for i in range(len(Gen_List)):
                 Mgen.append(Gen_List[i][0])
                 Sgen.append(Gen_List[i][1])
