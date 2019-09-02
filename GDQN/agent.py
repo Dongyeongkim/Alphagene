@@ -2,6 +2,7 @@ import os
 import gym
 import utils
 import random
+import Genetic
 import gen_main
 import numpy as np
 import tensorflow as tf
@@ -182,7 +183,10 @@ if __name__ == "__main__":
     # Deterministic-v4 version use 4 actions
     env = gym.make('BreakoutDeterministic-v4')
     for j in range(10):
-        Model = build_model()
+        try:
+            Model = build_model()
+        except FileNotFoundError:
+            
         for i in range(8):
             agent = DQNAgent(action_size=4,model=Model[i])
 
