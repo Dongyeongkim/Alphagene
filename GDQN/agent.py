@@ -188,9 +188,9 @@ if __name__ == "__main__":
         except FileNotFoundError:
             Gen_C = Genetic.Chromosomes_Offset()
             Gen_List = Gen_C.initGen(8)
-            for i in range(len(Fin_Gen)):
-                Mgen.append(Fin_Gen[i][0])
-                Sgen.append(Fin_Gen[i][1])
+            for i in range(len(Gen_List)):
+                Mgen.append(Gen_List[i][0])
+                Sgen.append(Gen_List[i][1])
             for i in range(len(Mgen)):
                 Model = Model_Converter.GeneticModel(Mgen[i], Sgen[i]).model
                 model_json = Model.to_json()
