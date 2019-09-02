@@ -186,6 +186,17 @@ if __name__ == "__main__":
         try:
             Model = build_model()
         except FileNotFoundError:
+            Gen_C = Genetic.Chromosomes_Offset()
+            Gen_List = Gen_C.initGen(8)
+            for i in range(len(Fin_Gen)):
+                Mgen.append(Fin_Gen[i][0])
+                Sgen.append(Fin_Gen[i][1])
+            for i in range(len(Mgen)):
+                Model = Model_Converter.GeneticModel(Mgen[i], Sgen[i]).model
+                model_json = Model.to_json()
+                with open("model/model" + str(i) + ".json", "w") as json_file:
+                    json_file.write(model_json)
+            Model = Build_model()
             
         for i in range(8):
             agent = DQNAgent(action_size=4,model=Model[i])
@@ -300,7 +311,6 @@ if __name__ == "__main__":
         for i in range(8):
             f = open('./Score/score.txt', 'a'); f.write(Score[i]+' ')
             g = open('./E_Cons/E_Cons.txt','a'); f.write(E_Cons[i]+' ')
-
 
 
 
