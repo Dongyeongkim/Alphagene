@@ -1,7 +1,6 @@
 import random as rd
 import numpy as np
 
-
 class Gen_Selection:
 
     def __init__(self):
@@ -28,15 +27,14 @@ class Gen_Selection:
         Gen1 = [];
         Gen2 = []
         cnt = 0
-        m_list = [];
-        fm_list = []
+        m_list = [];fm_list = []
         for i in range(len(Gen_List)):
             m_list.append(i)
         for i in range(len(Gen_List)):
-            fm_list.append(np.random.choice(m_list, p=Probability_Storage))
+            fm_list.append([np.random.choice(m_list, p=Probability_Storage),np.random.choice(m_list, p=Probability_Storage)])
         while (cnt < 8):
-            Gen1.append(Gen_List[fm_list[cnt]])
-            Gen2.append(Gen_List[fm_list[cnt + 1]])
+            Gen1.append(Gen_List[fm_list[cnt][0]])
+            Gen2.append(Gen_List[fm_list[cnt][1]])
             cnt += 2
 
         return Gen1, Gen2
