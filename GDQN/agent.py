@@ -11,6 +11,7 @@ from keras import backend as K
 from skimage.color import rgb2gray
 from skimage.transform import resize
 from keras.optimizers import RMSprop
+import Model_Converter
 
 EPISODES = 50000
 
