@@ -298,19 +298,17 @@ if __name__ == "__main__":
                         agent.avg_q_max, agent.avg_loss = 0, 0
                 if e % 500 == 0:
                     agent.model.save_weights("./t_score/breakout_dqn_gen"+str(j)+'indiv'+str(i)+'times'+str(e)+".h5")
-
-            for file in os.scandir("./s_i/"):
-                f = open("./s_i/"+file,'r')
-                Score += float(f.read());f.close()
-                os.remove(file.path)
-            for file in os.scandir("./e_i/"):
-                g = open("./e_i/"+file,'r')
-                E_Cons += float(g.read());g.close()
-                os.remove(file.path)
+        Score = 0; E_Cons = 0
+        for file in os.scandir("./s_i/"):
+            f = open("./s_i/"+file,'r')
+            Score += float(f.read());f.close()
+            os.remove(file.path)
+        for file in os.scandir("./e_i/"):
+            g = open("./e_i/"+file,'r')
+            E_Cons += float(g.read());g.close()
+            os.remove(file.path)
             
             f = open('./Score/score.txt','a'); f.write(Score+' ')
             g = open('./E_Cons/E_Cons.txt','a'); f.write(E_Cons+' ')
-
-
 
 
