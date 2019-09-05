@@ -184,10 +184,7 @@ if __name__ == "__main__":
     # Deterministic-v4 version use 4 actions
     env = gym.make('BreakoutDeterministic-v4')
     for j in range(10):
-        try:
-            Model = build_model()
-            f = open('./Score/score.txt','w'); g = open('./E_Cons/E_Cons.txt','w'); f.close();g.close()
-        except FileNotFoundError:
+        if(j==0):
             Gen_C = Genetic.Chromosomes_Offset()
             Gen_List = Gen_C.initGen(8)
             Mgen = []; Sgen = []
@@ -199,12 +196,15 @@ if __name__ == "__main__":
                 model_json = Model.to_json()
                 with open("model/model" + str(i) + ".json", "w") as json_file:
                     json_file.write(model_json)
-            Model = build_model()
+            f = open('./Score/score.txt','w'); g = open('./E_Cons/E_Cons.txt','w'); f.close();g.close()
+        else:
             f = open('./Score/score.txt','w'); g = open('./E_Cons/E_Cons.txt','w'); f.close();g.close()
         for i in range(8):
-            agent = DQNAgent(action_size=4,model=Model[i])
-
-            scores, episodes, global_step = [], [], 0
+            json_file = open("./model/model"+str(i)+".json", "r")
+            loaded_model_json = json_file.read()
+            json_file.close()
+            loaded_model = tf.keras.models.model_from_json(loaded_model_json)
+            agent = DQNAgent(action_size=4,model=loaded_model)
 
             for e in range(EPISODES):
                 Power = 10
@@ -293,8 +293,8 @@ if __name__ == "__main__":
                               "  global_step:", global_step, "  average_q:",
                               agent.avg_q_max / float(step), "  average loss:",
                               agent.avg_loss / float(step))
-                        f = open("./s_i/"+str(e)+".txt",'w');f.write(score); f.close()
-                        g = open("./e_i/"+str(e)+".txt",'w');g.write(Power); g.close()
+                        f = open("./s_i/"+str(e)+".txt",'w');f.write(str(score)); f.close()
+                        g = open("./e_i/"+str(e)+".txt",'w');g.write(str(Power)); g.close()
 
                         agent.avg_q_max, agent.avg_loss = 0, 0
                 if e % 500 == 0:
