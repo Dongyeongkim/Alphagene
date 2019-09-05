@@ -61,7 +61,7 @@ class Chromosomes_Offset:
                 elif (Gen_Master[i] == '011'):
                     gen_Slave += '00'
                 else:
-                    RandInt = rd.randint(1, 244)
+                    RandInt = rd.randint(1, 100)
                     RandHex = format(RandInt, 'x')
                     if (len(RandHex) < 2):
                         RandHex = '0' + RandHex
