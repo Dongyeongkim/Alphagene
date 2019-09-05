@@ -1,3 +1,4 @@
+from gpuinfo.nvidia import get_gpus
 import psutil
 
 
