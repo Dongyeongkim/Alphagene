@@ -199,7 +199,7 @@ if __name__ == "__main__":
                 with open("model/model" + str(i) + ".json", "w") as json_file:
                     json_file.write(model_json)
             Model = build_model()
-            
+        f = open('./Score/score.txt','w'); g = open('./E_Cons/E_Cons.txt','w'); f.close();g.close()
         for i in range(8):
             agent = DQNAgent(action_size=4,model=Model[i])
 
@@ -299,20 +299,17 @@ if __name__ == "__main__":
                 if e % 500 == 0:
                     agent.model.save_weights("./t_score/breakout_dqn_gen"+str(j)+'indiv'+str(i)+'times'+str(e)+".h5")
 
-            f = open("./Score/" + str(i) + ".txt", 'w');
-            g = open("./E_Cons/" + str(i) + ".txt", 'w')
             for file in os.scandir("./s_i/"):
+                f = open("./s_i/"+file,'r')
+                Score += float(f.read());f.close()
                 os.remove(file.path)
             for file in os.scandir("./e_i/"):
+                g = open("./e_i/"+file,'r')
+                E_Cons += float(g.read());g.close()
                 os.remove(file.path)
-
-        Score = []; E_Cons = []
-        for i in range(8):
-            f = open('./Score/' + str(i) + '.txt', 'w');  Score.append(f.read())
-            g = open('./E_Cons/' + str(i) + '.txt', 'w'); E_Cons.append(g.read())
-        for i in range(8):
-            f = open('./Score/score.txt', 'a'); f.write(Score[i]+' ')
-            g = open('./E_Cons/E_Cons.txt','a'); f.write(E_Cons[i]+' ')
+            
+            f = open('./Score/score.txt','a'); f.write(Score+' ')
+            g = open('./E_Cons/E_Cons.txt','a'); f.write(E_Cons+' ')
 
 
 
