@@ -2,9 +2,7 @@ import tensorflow as tf
 
 
 class GeneticModel:
-    def __init__(self, Mgen, Sgen, optim=tf.keras.optimizers.Adam, lr=1e-7):
-        self.lr = lr;
-        self.optim = optim(learning_rate=lr)
+    def __init__(self, Mgen, Sgen):
         self.model = self.Convert2Model(Mgen, Sgen)
         pass
 
