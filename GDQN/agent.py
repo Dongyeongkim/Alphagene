@@ -266,7 +266,7 @@ if __name__ == "__main__":
                     # update the target model with model
                     if global_step % agent.update_target_rate == 0:
                         Power += U.Pred_E()
-                        agent.update_target_model(target_model,model)
+                        agent.update_target_model(agent.target_model,agent.model)
 
                     Power += U.Pred_E()
                     score += reward
