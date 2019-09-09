@@ -180,6 +180,7 @@ def build_model():
 
 
 if __name__ == "__main__":
+    global_step = 0
     # In case of BreakoutDeterministic-v3, always skip 4 frames
     # Deterministic-v4 version use 4 actions
     env = gym.make('BreakoutDeterministic-v4')
